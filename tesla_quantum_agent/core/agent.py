@@ -56,6 +56,9 @@ class MetaCognitiveAgent:
         self.thinking_mode = ThinkingMode.ANALYTICAL
         self.session_id = datetime.now().isoformat()
         self.response_history: List[Dict[str, Any]] = []
+        self._last_finish_reason: Optional[str] = None
+        self._gen_max_new_tokens: int = 2048
+        self._gen_temperature: Optional[float] = None
 
     def set_context(self, context: Dict[str, Any]) -> None:
         self.context = dict(context or {})
@@ -81,13 +84,17 @@ class MetaCognitiveAgent:
             {"role": "system", "content": self._build_system_prompt()},
             {"role": "user", "content": prompt},
         ]
-        temperature = 0.9 if self.thinking_mode.value == "creative" else 0.7
+        if self._gen_temperature is not None:
+            temperature = float(self._gen_temperature)
+        else:
+            temperature = 0.9 if self.thinking_mode.value == "creative" else 0.7
         result = self.llm.generate(
             messages,
-            max_new_tokens=2048,
+            max_new_tokens=int(self._gen_max_new_tokens),
             temperature=temperature,
             enable_thinking=True,
         )
+        self._last_finish_reason = result.get("finish_reason")
         if result.get("thinking"):
             self.meta_engine.meta_state.add_meta_question(
                 f"Model internal reasoning: {str(result['thinking'])[:300]}..."
@@ -109,19 +116,35 @@ class MetaCognitiveAgent:
                 ),
             },
         ]
-        result = self.llm.generate(messages, enable_thinking=True, temperature=0.6)
+        result = self.llm.generate(
+            messages,
+            max_new_tokens=int(self._gen_max_new_tokens),
+            enable_thinking=True,
+            temperature=0.6,
+        )
+        self._last_finish_reason = result.get("finish_reason")
         self.meta_engine.meta_state.update_energy(self._account_tokens(result.get("usage")))
         return result.get("content") or (
             f"[Alternative Response]\nPrompt: {prompt[:50]}...\n"
             f"Assumptions addressed: {', '.join(assumptions[:3])}"
         )
 
-    def generate_response(self, prompt: str) -> Dict[str, Any]:
+    def generate_response(
+        self,
+        prompt: str,
+        max_new_tokens: Optional[int] = None,
+        temperature: Optional[float] = None,
+    ) -> Dict[str, Any]:
         """Generate a response with full meta-cognitive + vibrational processing."""
         start_time = datetime.now()
         self.meta_engine.reset()
         self.vortex.exploration_state.exploration_count = 0
         self.zero_energy.belief_history = []
+        self._last_finish_reason = None
+        if max_new_tokens is not None:
+            self._gen_max_new_tokens = int(max_new_tokens)
+        if temperature is not None:
+            self._gen_temperature = float(temperature)
 
         if hasattr(self.embedder, "embed_with_novelty"):
             prompt_pack = self.embedder.embed_with_novelty(prompt)
@@ -161,8 +184,11 @@ class MetaCognitiveAgent:
             spots = ", ".join(checkpoint.meta_state.blind_spots_detected[:3])
             initial_response = f"[Requires verification] {initial_response}\nBlind spots: {spots}"
         elif action == ActionDecision.REFINED:
-            qs = ", ".join(checkpoint.meta_state.meta_questions[:2])
-            initial_response += f"\n\n[Refinement needed] {qs}"
+            truncated = (self._last_finish_reason or "") == "length"
+            empty = not (initial_response or "").strip()
+            if empty or truncated:
+                qs = ", ".join(checkpoint.meta_state.meta_questions[:2])
+                initial_response += f"\n\n[Refinement needed] {qs}"
 
         final_meta_state = self.meta_engine.run_meta_reflection(initial_response, self.context)
 

@@ -14,7 +14,7 @@ from tesla_quantum_agent.core.agent import MetaCognitiveAgent
 from tesla_quantum_agent.core.embedder import NoveltyAwareEmbedder, QuantizedVibrationalState
 from tesla_quantum_agent.core.synth import SyntheticDataGenerator
 from tesla_quantum_agent.core.vortex import VortexNoveltyEngine
-from tesla_quantum_agent.tesla.coil import TransformerCoil
+from tesla_quantum_agent.tesla.coil import VOLTAGE_GEN_PARAMS, TransformerCoil
 from tesla_quantum_agent.tesla.damper import UncertaintyDamper
 from tesla_quantum_agent.tesla.evaluator import QuantumEvaluator
 from tesla_quantum_agent.tesla.field import FieldEffectIntelligence
@@ -251,12 +251,17 @@ class TeslaQuantumFramework:
             )
             ledger.voltage = self.coil.energy_for(voltage)
 
+            gen = VOLTAGE_GEN_PARAMS.get(voltage, VOLTAGE_GEN_PARAMS["120V"])
             if voltage == "12V":
                 core = self.coil.transform(query, ctx, voltage)
                 ledger.llm = ledger.voltage
             else:
                 self.meta_agent.set_context(ctx)
-                meta_result = self.meta_agent.generate_response(query)
+                meta_result = self.meta_agent.generate_response(
+                    query,
+                    max_new_tokens=int(gen["max_new_tokens"]),
+                    temperature=float(gen["temperature"]),
+                )
                 core = meta_result["response"]
                 ledger.llm = float(meta_result.get("energy_consumption", 0.0)) * 0.1
                 ledger.meta = 1.0
@@ -267,7 +272,7 @@ class TeslaQuantumFramework:
                 if damped_u < 0:
                     core = f"[Uncertainty damper emergency] {core}"
 
-            if trigger_synth or combined_vibration > 0.55:
+            if float(sae_novelty.get("rare_feature_hits", 0) or 0) > 0:
                 scfg = self.config.get("synth", {})
                 synthetic_paths = self.synth.inject_into_vortex(
                     self.vortex,

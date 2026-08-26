@@ -79,6 +79,7 @@ class StubBackend(LLMBackend):
             "thinking": thinking if enable_thinking else None,
             "raw": content,
             "usage": usage,
+            "finish_reason": "stop",
         }
 
     def get_model_name(self) -> str:
@@ -190,27 +191,39 @@ class OpenAICompatibleBackend(LLMBackend):
         enable_thinking: bool = True,
         **kwargs: Any,
     ) -> Dict[str, Any]:
-        extra_body = {"chat_template_kwargs": {"enable_thinking": enable_thinking}}
+        n_predict = int(max_new_tokens)
+        extra_body = {
+            "chat_template_kwargs": {"enable_thinking": False},
+            "n_predict": n_predict,  # llama.cpp: do not let server default clamp below coil voltage
+        }
         extra_body.update(kwargs.get("extra_body", {}) or {})
+        extra_body["n_predict"] = int(extra_body.get("n_predict") or n_predict)
         response = self.client.chat.completions.create(
             model=self.model_name,
             messages=messages,
-            max_tokens=max_new_tokens,
+            max_tokens=n_predict,
             temperature=temperature,
             extra_body=extra_body,
         )
-        msg = response.choices[0].message
+        choice = response.choices[0]
+        msg = choice.message
         content = msg.content or ""
         thinking = getattr(msg, "reasoning_content", None) or getattr(msg, "thinking", None)
+        finish_reason = getattr(choice, "finish_reason", None)
         usage = {}
         if response.usage:
             dump = getattr(response.usage, "model_dump", None)
             usage = dump() if callable(dump) else dict(response.usage)
+        print(
+            f"[llm] max_tokens={n_predict} n_predict={extra_body.get('n_predict')} "
+            f"finish_reason={finish_reason} completion_tokens={usage.get('completion_tokens')}"
+        )
         return {
             "content": content,
             "thinking": thinking,
             "raw": content,
             "usage": usage,
+            "finish_reason": finish_reason,
         }
 
     def get_model_name(self) -> str:
