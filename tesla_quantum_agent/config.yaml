@@ -1,0 +1,41 @@
+# Tesla-Quantum Meta-Cognitive Agent configuration
+# All paths are optional; omitted keys fall back to package defaults.
+
+model:
+  # stub | transformers | openai | vllm | ollama
+  backend: stub
+  name: Qwen/Qwen3.5-9B
+  base_url: http://localhost:8000/v1
+  api_key: EMPTY
+  device_map: auto
+  torch_dtype: auto
+
+embedder:
+  model_name: all-MiniLM-L6-v2
+  dim: 384
+  n_codes: 512
+  n_residuals: 4
+  sae_dict_size: 1024
+  sae_k: 16
+
+agent:
+  reflection_threshold: 0.5
+  novelty_threshold: 0.3
+  consistency_threshold: 0.7
+  energy_budget: 100.0
+
+perception:
+  resonance_threshold: 0.92
+  lsh_bits: 32
+  db_path: ./tesla_resonance
+
+damper:
+  damping: 0.65
+
+synth:
+  energy_budget: 50.0
+  n_variants: 3
+  target_vibration: 0.6
+
+default_profile: technical
+default_output: json

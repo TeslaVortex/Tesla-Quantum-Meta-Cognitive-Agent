@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tesla-quantum-agent"
+version = "1.0.0"
+description = "Tesla-Quantum Meta-Cognitive Agent: resonance, VQ, SAE novelty, voltage-routed generation"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=1.24",
+  "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+llm = ["transformers>=4.51", "torch>=2.4", "openai>=1.40"]
+embed = ["sentence-transformers>=3.0"]
+store = ["lancedb>=0.9", "scikit-learn>=1.4"]
+all = ["transformers>=4.51", "torch>=2.4", "openai>=1.40", "sentence-transformers>=3.0", "lancedb>=0.9", "scikit-learn>=1.4"]
+
+[project.scripts]
+tesla-quantum = "tesla_quantum_agent.main:main"
+
+[tool.setuptools.packages.find]
+include = ["tesla_quantum_agent*"]
+
+[tool.setuptools.package-data]
+tesla_quantum_agent = ["config.yaml", "requirements.txt", "README.md"]

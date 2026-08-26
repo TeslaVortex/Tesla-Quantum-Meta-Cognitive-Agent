@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+tesla_resonance/
+meta_session_*.json
+*.pt
+*.bin
+*.safetensors
+.DS_Store
